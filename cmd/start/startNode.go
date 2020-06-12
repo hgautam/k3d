@@ -22,6 +22,7 @@ THE SOFTWARE.
 package start
 
 import (
+	"github.com/rancher/k3d/cmd/util"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
 	"github.com/spf13/cobra"
@@ -34,13 +35,13 @@ func NewCmdStartNode() *cobra.Command {
 
 	// create new command
 	cmd := &cobra.Command{
-		Use:   "node NAME", // TODO: startNode: allow one or more names or --all
-		Short: "Start an existing k3d node",
-		Long:  `Start an existing k3d node.`,
+		Use:               "node NAME", // TODO: startNode: allow one or more names or --all
+		Short:             "Start an existing k3d node",
+		Long:              `Start an existing k3d node.`,
+		ValidArgsFunction: util.ValidArgsAvailableNodes,
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Debugln("start node called")
 			node := parseStartNodeCmd(cmd, args)
-			if err := runtimes.SelectedRuntime.StartNode(node); err != nil {
+			if err := runtimes.SelectedRuntime.StartNode(cmd.Context(), node); err != nil {
 				log.Fatalln(err)
 			}
 		},

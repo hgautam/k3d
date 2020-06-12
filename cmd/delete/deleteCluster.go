@@ -22,6 +22,7 @@ THE SOFTWARE.
 package delete
 
 import (
+	"github.com/rancher/k3d/cmd/util"
 	"github.com/rancher/k3d/pkg/cluster"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
@@ -35,24 +36,23 @@ func NewCmdDeleteCluster() *cobra.Command {
 
 	// create new cobra command
 	cmd := &cobra.Command{
-		Use:   "cluster (NAME | --all)",
-		Short: "Delete a cluster.",
-		Long:  `Delete a cluster.`,
-		Args:  cobra.MinimumNArgs(0), // 0 or n arguments; 0 only if --all is set
+		Use:               "cluster (NAME | --all)",
+		Short:             "Delete a cluster.",
+		Long:              `Delete a cluster.`,
+		Args:              cobra.MinimumNArgs(0), // 0 or n arguments; 0 only if --all is set
+		ValidArgsFunction: util.ValidArgsAvailableClusters,
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Debugln("delete cluster called")
-
 			clusters := parseDeleteClusterCmd(cmd, args)
 
 			if len(clusters) == 0 {
 				log.Infoln("No clusters found")
 			} else {
 				for _, c := range clusters {
-					if err := cluster.DeleteCluster(c, runtimes.SelectedRuntime); err != nil {
+					if err := cluster.DeleteCluster(cmd.Context(), runtimes.SelectedRuntime, c); err != nil {
 						log.Fatalln(err)
 					}
 					log.Infoln("Removing cluster details from default kubeconfig")
-					if err := cluster.RemoveClusterFromDefaultKubeConfig(c); err != nil {
+					if err := cluster.RemoveClusterFromDefaultKubeConfig(cmd.Context(), c); err != nil {
 						log.Warnln("Failed to remove cluster details from default kubeconfig")
 						log.Warnln(err)
 					}
@@ -82,7 +82,7 @@ func parseDeleteClusterCmd(cmd *cobra.Command, args []string) []*k3d.Cluster {
 	if all, err := cmd.Flags().GetBool("all"); err != nil {
 		log.Fatalln(err)
 	} else if all {
-		clusters, err = cluster.GetClusters(runtimes.SelectedRuntime)
+		clusters, err = cluster.GetClusters(cmd.Context(), runtimes.SelectedRuntime)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -94,7 +94,7 @@ func parseDeleteClusterCmd(cmd *cobra.Command, args []string) []*k3d.Cluster {
 	}
 
 	for _, name := range args {
-		cluster, err := cluster.GetCluster(&k3d.Cluster{Name: name}, runtimes.SelectedRuntime)
+		cluster, err := cluster.GetCluster(cmd.Context(), runtimes.SelectedRuntime, &k3d.Cluster{Name: name})
 		if err != nil {
 			log.Fatalln(err)
 		}

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rancher/k3d/cmd/util"
 	"github.com/rancher/k3d/pkg/cluster"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
@@ -48,9 +49,10 @@ func NewCmdGetKubeconfig() *cobra.Command {
 
 	// create new command
 	cmd := &cobra.Command{
-		Use:   "kubeconfig [CLUSTER [CLUSTER [...]] | --all]", // TODO: getKubeconfig: allow more than one cluster name or even --all
-		Short: "Get kubeconfig",
-		Long:  `Get kubeconfig.`,
+		Use:               "kubeconfig [CLUSTER [CLUSTER [...]] | --all]", // TODO: getKubeconfig: allow more than one cluster name or even --all
+		Short:             "Get kubeconfig",
+		Long:              `Get kubeconfig.`,
+		ValidArgsFunction: util.ValidArgsAvailableClusters,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if (len(args) < 1 && !getKubeconfigFlags.all) || (len(args) > 0 && getKubeconfigFlags.all) {
 				return fmt.Errorf("Need to specify one or more cluster names *or* set `--all` flag")
@@ -63,13 +65,17 @@ func NewCmdGetKubeconfig() *cobra.Command {
 
 			// generate list of clusters
 			if getKubeconfigFlags.all {
-				clusters, err = cluster.GetClusters(runtimes.SelectedRuntime)
+				clusters, err = cluster.GetClusters(cmd.Context(), runtimes.SelectedRuntime)
 				if err != nil {
 					log.Fatalln(err)
 				}
 			} else {
 				for _, clusterName := range args {
-					clusters = append(clusters, &k3d.Cluster{Name: clusterName})
+					retrievedCluster, err := cluster.GetCluster(cmd.Context(), runtimes.SelectedRuntime, &k3d.Cluster{Name: clusterName})
+					if err != nil {
+						log.Fatalln(err)
+					}
+					clusters = append(clusters, retrievedCluster)
 				}
 			}
 
@@ -77,7 +83,7 @@ func NewCmdGetKubeconfig() *cobra.Command {
 			errorGettingKubeconfig := false
 			for _, c := range clusters {
 				log.Debugf("Getting kubeconfig for cluster '%s'", c.Name)
-				if getKubeconfigFlags.output, err = cluster.GetAndWriteKubeConfig(runtimes.SelectedRuntime, c, getKubeconfigFlags.output, &writeKubeConfigOptions); err != nil {
+				if getKubeconfigFlags.output, err = cluster.GetAndWriteKubeConfig(cmd.Context(), runtimes.SelectedRuntime, c, getKubeconfigFlags.output, &writeKubeConfigOptions); err != nil {
 					log.Errorln(err)
 					errorGettingKubeconfig = true
 				}

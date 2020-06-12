@@ -22,6 +22,7 @@ THE SOFTWARE.
 package stop
 
 import (
+	"github.com/rancher/k3d/cmd/util"
 	"github.com/rancher/k3d/pkg/runtimes"
 	"github.com/spf13/cobra"
 
@@ -35,13 +36,13 @@ func NewCmdStopNode() *cobra.Command {
 
 	// create new command
 	cmd := &cobra.Command{
-		Use:   "node NAME", // TODO: stopNode: allow one or more names or --all",
-		Short: "Stop an existing k3d node",
-		Long:  `Stop an existing k3d node.`,
+		Use:               "node NAME", // TODO: stopNode: allow one or more names or --all",
+		Short:             "Stop an existing k3d node",
+		Long:              `Stop an existing k3d node.`,
+		ValidArgsFunction: util.ValidArgsAvailableNodes,
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Debugln("stop node called")
 			node := parseStopNodeCmd(cmd, args)
-			if err := runtimes.SelectedRuntime.StopNode(node); err != nil {
+			if err := runtimes.SelectedRuntime.StopNode(cmd.Context(), node); err != nil {
 				log.Fatalln(err)
 			}
 		},

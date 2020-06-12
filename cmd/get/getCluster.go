@@ -22,12 +22,13 @@ THE SOFTWARE.
 package get
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
-	"github.com/rancher/k3d/pkg/cluster"
+	"github.com/rancher/k3d/cmd/util"
+	k3cluster "github.com/rancher/k3d/pkg/cluster"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
 	"github.com/spf13/cobra"
@@ -37,40 +38,33 @@ import (
 	"github.com/liggitt/tabwriter"
 )
 
+// TODO : deal with --all flag to manage differentiate started cluster and stopped cluster like `docker ps` and `docker ps -a`
+type clusterFlags struct {
+	noHeader bool
+	token    bool
+}
+
 // NewCmdGetCluster returns a new cobra command
 func NewCmdGetCluster() *cobra.Command {
+
+	clusterFlags := clusterFlags{}
 
 	// create new command
 	cmd := &cobra.Command{
 		Use:     "cluster [NAME [NAME...]]",
 		Aliases: []string{"clusters"},
-		Short:   "Get cluster",
-		Long:    `Get cluster.`,
-		Args:    cobra.MinimumNArgs(0), // 0 or more; 0 = all
+		Short:   "Get cluster(s)",
+		Long:    `Get cluster(s).`,
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Debugln("get cluster called")
-			clusters, headersOff := parseGetClusterCmd(cmd, args)
-			var existingClusters []*k3d.Cluster
-			if clusters == nil { // Option a)  no cluster name specified -> get all clusters
-				found, err := cluster.GetClusters(runtimes.SelectedRuntime)
-				if err != nil {
-					log.Fatalln(err)
-				}
-				existingClusters = append(existingClusters, found...)
-			} else { // Option b) cluster name specified -> get specific cluster
-				found, err := cluster.GetCluster(clusters, runtimes.SelectedRuntime)
-				if err != nil {
-					log.Fatalln(err)
-				}
-				existingClusters = append(existingClusters, found)
-			}
-			// print existing clusters
-			printClusters(existingClusters, headersOff)
+			clusters := buildClusterList(cmd.Context(), args)
+			PrintClusters(clusters, clusterFlags)
 		},
+		ValidArgsFunction: util.ValidArgsAvailableClusters,
 	}
 
 	// add flags
-	cmd.Flags().Bool("no-headers", false, "Disable headers")
+	cmd.Flags().BoolVar(&clusterFlags.noHeader, "no-headers", false, "Disable headers")
+	cmd.Flags().BoolVar(&clusterFlags.token, "token", false, "Print k3s cluster token")
 
 	// add subcommands
 
@@ -78,51 +72,57 @@ func NewCmdGetCluster() *cobra.Command {
 	return cmd
 }
 
-func parseGetClusterCmd(cmd *cobra.Command, args []string) (*k3d.Cluster, bool) {
+func buildClusterList(ctx context.Context, args []string) []*k3d.Cluster {
+	var clusters []*k3d.Cluster
+	var err error
 
-	// --no-headers
-	headersOff, err := cmd.Flags().GetBool("no-headers")
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// Args = cluster name
 	if len(args) == 0 {
-		return nil, headersOff
+		// cluster name not specified : get all clusters
+		clusters, err = k3cluster.GetClusters(ctx, runtimes.SelectedRuntime)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	} else {
+		for _, clusterName := range args {
+			// cluster name specified : get specific cluster
+			retrievedCluster, err := k3cluster.GetCluster(ctx, runtimes.SelectedRuntime, &k3d.Cluster{Name: clusterName})
+			if err != nil {
+				log.Fatalln(err)
+			}
+			clusters = append(clusters, retrievedCluster)
+		}
 	}
 
-	cluster := &k3d.Cluster{Name: args[0]}
-
-	return cluster, headersOff
+	return clusters
 }
 
-func printClusters(clusters []*k3d.Cluster, headersOff bool) {
+// PrintPrintClusters : display list of cluster
+func PrintClusters(clusters []*k3d.Cluster, flags clusterFlags) {
 
 	tabwriter := tabwriter.NewWriter(os.Stdout, 6, 4, 3, ' ', tabwriter.RememberWidths)
 	defer tabwriter.Flush()
 
-	if !headersOff {
+	if !flags.noHeader {
 		headers := []string{"NAME", "MASTERS", "WORKERS"} // TODO: getCluster: add status column
+		if flags.token {
+			headers = append(headers, "TOKEN")
+		}
 		_, err := fmt.Fprintf(tabwriter, "%s\n", strings.Join(headers, "\t"))
 		if err != nil {
 			log.Fatalln("Failed to print headers")
 		}
 	}
 
-	sort.Slice(clusters, func(i, j int) bool {
-		return clusters[i].Name < clusters[j].Name
-	})
+	k3cluster.SortClusters(clusters)
 
 	for _, cluster := range clusters {
-		masterCount := 0
-		workerCount := 0
-		for _, node := range cluster.Nodes {
-			if node.Role == k3d.MasterRole {
-				masterCount++
-			} else if node.Role == k3d.WorkerRole {
-				workerCount++
-			}
+		masterCount := cluster.MasterCount()
+		workerCount := cluster.WorkerCount()
+
+		if flags.token {
+			fmt.Fprintf(tabwriter, "%s\t%d\t%d\t%s\n", cluster.Name, masterCount, workerCount, cluster.Token)
+		} else {
+			fmt.Fprintf(tabwriter, "%s\t%d\t%d\n", cluster.Name, masterCount, workerCount)
 		}
-		fmt.Fprintf(tabwriter, "%s\t%d\t%d\n", cluster.Name, masterCount, workerCount)
 	}
 }

@@ -23,9 +23,11 @@ package create
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rancher/k3d/cmd/util"
 	k3dc "github.com/rancher/k3d/pkg/cluster"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
@@ -36,6 +38,8 @@ import (
 // NewCmdCreateNode returns a new cobra command
 func NewCmdCreateNode() *cobra.Command {
 
+	createNodeOpts := k3d.CreateNodeOpts{}
+
 	// create new command
 	cmd := &cobra.Command{
 		Use:   "node NAME",
@@ -44,11 +48,9 @@ func NewCmdCreateNode() *cobra.Command {
 		Args:  cobra.ExactArgs(1), // exactly one name accepted // TODO: if not specified, inherit from cluster that the node shall belong to, if that is specified
 		Run: func(cmd *cobra.Command, args []string) {
 			nodes, cluster := parseCreateNodeCmd(cmd, args)
-			for _, node := range nodes {
-				if err := k3dc.AddNodeToCluster(runtimes.SelectedRuntime, node, cluster); err != nil {
-					log.Errorf("Failed to add node '%s' to cluster '%s'", node.Name, cluster.Name)
-					log.Errorln(err)
-				}
+			if err := k3dc.AddNodesToCluster(cmd.Context(), runtimes.SelectedRuntime, nodes, cluster, createNodeOpts); err != nil {
+				log.Errorf("Failed to add nodes '%+v' to cluster '%s'", nodes, cluster.Name)
+				log.Errorln(err)
 			}
 		},
 	}
@@ -56,12 +58,21 @@ func NewCmdCreateNode() *cobra.Command {
 	// add flags
 	cmd.Flags().Int("replicas", 1, "Number of replicas of this node specification.")
 	cmd.Flags().String("role", string(k3d.WorkerRole), "Specify node role [master, worker]")
+	if err := cmd.RegisterFlagCompletionFunc("role", util.ValidArgsNodeRoles); err != nil {
+		log.Fatalln("Failed to register flag completion for '--role'", err)
+	}
 	cmd.Flags().StringP("cluster", "c", k3d.DefaultClusterName, "Select the cluster that the node shall connect to.")
 	if err := cmd.MarkFlagRequired("cluster"); err != nil {
 		log.Fatalln("Failed to mark required flag '--cluster'")
 	}
+	if err := cmd.RegisterFlagCompletionFunc("cluster", util.ValidArgsAvailableClusters); err != nil {
+		log.Fatalln("Failed to register flag completion for '--cluster'", err)
+	}
 
 	cmd.Flags().StringP("image", "i", fmt.Sprintf("%s:%s", k3d.DefaultK3sImageRepo, version.GetK3sVersion(false)), "Specify k3s image used for the node(s)")
+
+	cmd.Flags().BoolVar(&createNodeOpts.Wait, "wait", false, "Wait for the node(s) to be ready before returning.")
+	cmd.Flags().DurationVar(&createNodeOpts.Timeout, "timeout", 0*time.Second, "Maximum waiting time for '--wait' before canceling/returning.")
 
 	// done
 	return cmd
@@ -78,7 +89,6 @@ func parseCreateNodeCmd(cmd *cobra.Command, args []string) ([]*k3d.Node, *k3d.Cl
 	}
 
 	// --role
-	// TODO: createNode: for --role=master, update the nginx config and add TLS-SAN and server connection, etc.
 	roleStr, err := cmd.Flags().GetString("role")
 	if err != nil {
 		log.Errorln("No node role specified")
@@ -112,6 +122,9 @@ func parseCreateNodeCmd(cmd *cobra.Command, args []string) ([]*k3d.Node, *k3d.Cl
 			Name:  fmt.Sprintf("%s-%s-%d", k3d.DefaultObjectNamePrefix, args[0], i),
 			Role:  role,
 			Image: image,
+			Labels: map[string]string{
+				"k3d.role": roleStr,
+			},
 		}
 		nodes = append(nodes, node)
 	}

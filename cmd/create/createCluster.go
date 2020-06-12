@@ -51,7 +51,7 @@ Every cluster will consist of at least 2 containers:
 func NewCmdCreateCluster() *cobra.Command {
 
 	createClusterOpts := &k3d.CreateClusterOpts{}
-	var updateKubeconfig bool
+	var updateKubeconfig, updateCurrentContext bool
 
 	// create new command
 	cmd := &cobra.Command{
@@ -64,20 +64,20 @@ func NewCmdCreateCluster() *cobra.Command {
 			cluster := parseCreateClusterCmd(cmd, args, createClusterOpts)
 
 			// check if a cluster with that name exists already
-			if _, err := k3dCluster.GetCluster(cluster, runtimes.SelectedRuntime); err == nil {
+			if _, err := k3dCluster.GetCluster(cmd.Context(), runtimes.SelectedRuntime, cluster); err == nil {
 				log.Fatalf("Failed to create cluster '%s' because a cluster with that name already exists", cluster.Name)
 			}
 
 			// create cluster
-			if updateKubeconfig {
+			if updateKubeconfig || updateCurrentContext {
 				log.Debugln("'--update-kubeconfig set: enabling wait-for-master")
 				cluster.CreateClusterOpts.WaitForMaster = true
 			}
-			if err := k3dCluster.CreateCluster(cmd.Context(), cluster, runtimes.SelectedRuntime); err != nil {
+			if err := k3dCluster.CreateCluster(cmd.Context(), runtimes.SelectedRuntime, cluster); err != nil {
 				// rollback if creation failed
 				log.Errorln(err)
 				log.Errorln("Failed to create cluster >>> Rolling Back")
-				if err := k3dCluster.DeleteCluster(cluster, runtimes.SelectedRuntime); err != nil {
+				if err := k3dCluster.DeleteCluster(cmd.Context(), runtimes.SelectedRuntime, cluster); err != nil {
 					log.Errorln(err)
 					log.Fatalln("Cluster creation FAILED, also FAILED to rollback changes!")
 				}
@@ -85,26 +85,25 @@ func NewCmdCreateCluster() *cobra.Command {
 			}
 			log.Infof("Cluster '%s' created successfully!", cluster.Name)
 
-			if updateKubeconfig {
+			if updateKubeconfig || updateCurrentContext {
 				log.Debugf("Updating default kubeconfig with a new context for cluster %s", cluster.Name)
-				if _, err := k3dCluster.GetAndWriteKubeConfig(runtimes.SelectedRuntime, cluster, "", &k3dCluster.WriteKubeConfigOptions{UpdateExisting: true, OverwriteExisting: false, UpdateCurrentContext: false}); err != nil {
+				if _, err := k3dCluster.GetAndWriteKubeConfig(cmd.Context(), runtimes.SelectedRuntime, cluster, "", &k3dCluster.WriteKubeConfigOptions{UpdateExisting: true, OverwriteExisting: false, UpdateCurrentContext: updateCurrentContext}); err != nil {
 					log.Fatalln(err)
 				}
 			}
 
 			// print information on how to use the cluster with kubectl
 			log.Infoln("You can now use it like this:")
-			if updateKubeconfig {
+			if updateKubeconfig && !updateCurrentContext {
 				fmt.Printf("kubectl config use-context %s\n", fmt.Sprintf("%s-%s", k3d.DefaultObjectNamePrefix, cluster.Name))
-			} else {
+			} else if !updateCurrentContext {
 				if runtime.GOOS == "windows" {
-					log.Debugf("GOOS is %s", runtime.GOOS)
 					fmt.Printf("$env:KUBECONFIG=(%s get kubeconfig %s)\n", os.Args[0], cluster.Name)
 				} else {
 					fmt.Printf("export KUBECONFIG=$(%s get kubeconfig %s)\n", os.Args[0], cluster.Name)
 				}
-				fmt.Println("kubectl cluster-info")
 			}
+			fmt.Println("kubectl cluster-info")
 		},
 	}
 
@@ -116,12 +115,13 @@ func NewCmdCreateCluster() *cobra.Command {
 	cmd.Flags().IntP("workers", "w", 0, "Specify how many workers you want to create")
 	cmd.Flags().StringP("image", "i", fmt.Sprintf("%s:%s", k3d.DefaultK3sImageRepo, version.GetK3sVersion(false)), "Specify k3s image that you want to use for the nodes")
 	cmd.Flags().String("network", "", "Join an existing network")
-	cmd.Flags().String("secret", "", "Specify a cluster secret. By default, we generate one.")
+	cmd.Flags().String("token", "", "Specify a cluster token. By default, we generate one.")
 	cmd.Flags().StringArrayP("volume", "v", nil, "Mount volumes into the nodes (Format: `--volume [SOURCE:]DEST[@NODEFILTER[;NODEFILTER...]]`\n - Example: `k3d create -w 2 -v /my/path@worker[0,1] -v /tmp/test:/tmp/other@master[0]`")
 	cmd.Flags().StringArrayP("port", "p", nil, "Map ports from the node containers to the host (Format: `[HOST:][HOSTPORT:]CONTAINERPORT[/PROTOCOL][@NODEFILTER]`)\n - Example: `k3d create -w 2 -p 8080:80@worker[0] -p 8081@worker[1]`")
 	cmd.Flags().BoolVar(&createClusterOpts.WaitForMaster, "wait", false, "Wait for the master(s) to be ready before returning. Use '--timeout DURATION' to not wait forever.")
 	cmd.Flags().DurationVar(&createClusterOpts.Timeout, "timeout", 0*time.Second, "Rollback changes if cluster couldn't be created in specified duration.")
 	cmd.Flags().BoolVar(&updateKubeconfig, "update-kubeconfig", false, "Directly update the default kubeconfig with the new cluster's context")
+	cmd.Flags().BoolVar(&updateCurrentContext, "switch", false, "Directly switch the default kubeconfig's current-context to the new cluster's context (implies --update-kubeconfig)")
 	cmd.Flags().BoolVar(&createClusterOpts.DisableLoadBalancer, "no-lb", false, "Disable the creation of a LoadBalancer in front of the master nodes")
 
 	/* Image Importing */
@@ -206,8 +206,8 @@ func parseCreateClusterCmd(cmd *cobra.Command, args []string, createClusterOpts 
 		log.Fatalln("Can only run a single node in hostnetwork mode")
 	}
 
-	// --secret
-	secret, err := cmd.Flags().GetString("secret")
+	// --token
+	token, err := cmd.Flags().GetString("token")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -252,7 +252,7 @@ func parseCreateClusterCmd(cmd *cobra.Command, args []string, createClusterOpts 
 		}
 
 		// validate the specified volume mount and return it in SRC:DEST format
-		volume, err = cliutil.ValidateVolumeMount(volume)
+		volume, err = cliutil.ValidateVolumeMount(runtimes.SelectedRuntime, volume)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -309,7 +309,7 @@ func parseCreateClusterCmd(cmd *cobra.Command, args []string, createClusterOpts 
 	cluster := &k3d.Cluster{
 		Name:              clustername,
 		Network:           network,
-		Secret:            secret,
+		Token:             token,
 		CreateClusterOpts: createClusterOpts,
 		ExposeAPI:         exposeAPI,
 	}
@@ -375,11 +375,17 @@ func parseCreateClusterCmd(cmd *cobra.Command, args []string, createClusterOpts 
 	}
 
 	// append ports
+	nodeCount := masterCount + workerCount
+	nodeList := cluster.Nodes
+	if !createClusterOpts.DisableLoadBalancer {
+		nodeCount++
+		nodeList = append(nodeList, cluster.MasterLoadBalancer)
+	}
 	for portmap, filters := range portFilterMap {
-		if len(filters) == 0 && (masterCount+workerCount) > 1 {
-			log.Fatalf("Malformed portmapping '%s' lacks a node filter, but there is more than one node.", portmap)
+		if len(filters) == 0 && (nodeCount) > 1 {
+			log.Fatalf("Malformed portmapping '%s' lacks a node filter, but there is more than one node (including the loadbalancer, if there is any).", portmap)
 		}
-		nodes, err := cliutil.FilterNodes(append(cluster.Nodes, cluster.MasterLoadBalancer), filters)
+		nodes, err := cliutil.FilterNodes(nodeList, filters)
 		if err != nil {
 			log.Fatalln(err)
 		}

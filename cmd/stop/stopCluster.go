@@ -24,6 +24,7 @@ package stop
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/rancher/k3d/cmd/util"
 	"github.com/rancher/k3d/pkg/cluster"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
@@ -36,23 +37,21 @@ func NewCmdStopCluster() *cobra.Command {
 
 	// create new command
 	cmd := &cobra.Command{
-		Use:   "cluster  (NAME [NAME...] | --all)",
-		Short: "Stop an existing k3d cluster",
-		Long:  `Stop an existing k3d cluster.`,
+		Use:               "cluster  (NAME [NAME...] | --all)",
+		Short:             "Stop an existing k3d cluster",
+		Long:              `Stop an existing k3d cluster.`,
+		ValidArgsFunction: util.ValidArgsAvailableClusters,
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Debugln("stop cluster called")
 			clusters := parseStopClusterCmd(cmd, args)
 			if len(clusters) == 0 {
 				log.Infoln("No clusters found")
 			} else {
 				for _, c := range clusters {
-					if err := cluster.StopCluster(c, runtimes.SelectedRuntime); err != nil {
+					if err := cluster.StopCluster(cmd.Context(), runtimes.SelectedRuntime, c); err != nil {
 						log.Fatalln(err)
 					}
 				}
 			}
-
-			log.Debugln("...Finished")
 		},
 	}
 
@@ -73,7 +72,7 @@ func parseStopClusterCmd(cmd *cobra.Command, args []string) []*k3d.Cluster {
 	if all, err := cmd.Flags().GetBool("all"); err != nil {
 		log.Fatalln(err)
 	} else if all {
-		clusters, err = cluster.GetClusters(runtimes.SelectedRuntime)
+		clusters, err = cluster.GetClusters(cmd.Context(), runtimes.SelectedRuntime)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -85,7 +84,7 @@ func parseStopClusterCmd(cmd *cobra.Command, args []string) []*k3d.Cluster {
 	}
 
 	for _, name := range args {
-		cluster, err := cluster.GetCluster(&k3d.Cluster{Name: name}, runtimes.SelectedRuntime)
+		cluster, err := cluster.GetCluster(cmd.Context(), runtimes.SelectedRuntime, &k3d.Cluster{Name: name})
 		if err != nil {
 			log.Fatalln(err)
 		}

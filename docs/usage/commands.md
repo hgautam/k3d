@@ -14,9 +14,10 @@ k3d
       --network  # specify a network you want to connect to
       --no-image-volume  # disable the creation of a volume for storing images (used for the 'k3d load image' command)
       -p, --port  # add some more port mappings
-      --secret  # specify a cluster secret (default: auto-generated)
+      --token  # specify a cluster token (default: auto-generated)
       --timeout  # specify a timeout, after which the cluster creation will be interrupted and changes rolled back
       --update-kubeconfig  # enable the automated update of the default kubeconfig with the details of the newly created cluster (also sets '--wait=true')
+      --switch  # (implies --update-kubeconfig) automatically sets the current-context of your default kubeconfig to the new cluster's context
       -v, --volume  # specify additional bind-mounts
       --wait  # enable waiting for all master nodes to be ready before returning
       -w, --workers  # specify how many worker nodes you want to create
@@ -25,6 +26,8 @@ k3d
       -i, --image  # specify which k3s image should be used for the node(s)
           --replicas  # specify how many replicas you want to create with this spec
           --role  # specify the node role
+      --wait  # wait for the node to be up and running before returning
+      --timeout # specify a timeout duration, after which the node creation will be interrupted, if not done yet
   delete
     cluster CLUSTERNAME  # delete an existing cluster
       -a, --all  # delete all existing clusters
@@ -33,6 +36,8 @@ k3d
   start
     cluster CLUSTERNAME  # start a (stopped) cluster
       -a, --all  # start all clusters
+      --wait  # wait for all masters and master-loadbalancer to be up before returning
+      --timeout  # maximum waiting time for '--wait' before canceling/returning
     node NODENAME  # start a (stopped) node
   stop
     cluster CLUSTERNAME  # stop a cluster
@@ -41,6 +46,7 @@ k3d
   get
     cluster [CLUSTERNAME [CLUSTERNAME ...]]
       --no-headers  # do not print headers
+      --token  # show column with cluster tokens
     node NODENAME
       --no-headers  # do not print headers
     kubeconfig (CLUSTERNAME [CLUSTERNAME ...] | --all)
@@ -50,10 +56,9 @@ k3d
       -s, --switch  # switch current-context in kubeconfig to the new context
       -u, --update  # update conflicting fields in existing kubeconfig (default: true)
   load
-    image  [IMAGE [IMAGE ...]]  # Load one or more images from the local runtime environment into k3d clusters
+    image  [IMAGE | ARCHIVE [IMAGE | ARCHIVE ...]]  # Load one or more images from the local runtime environment or tar-archives into k3d clusters
       -c, --cluster  # clusters to load the image into
       -k, --keep-tarball  # do not delete the image tarball from the shared volume after completion
-      -t, --tar  # do not export image from runtime daemon, but directly import it from a tarball
   completion SHELL  # Generate completion scripts
   version  # show k3d build version
   help [COMMAND]  # show help text for any command

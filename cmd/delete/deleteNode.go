@@ -22,6 +22,7 @@ THE SOFTWARE.
 package delete
 
 import (
+	"github.com/rancher/k3d/cmd/util"
 	"github.com/rancher/k3d/pkg/cluster"
 	"github.com/rancher/k3d/pkg/runtimes"
 	k3d "github.com/rancher/k3d/pkg/types"
@@ -34,12 +35,12 @@ func NewCmdDeleteNode() *cobra.Command {
 
 	// create new cobra command
 	cmd := &cobra.Command{
-		Use:   "node (NAME | --all)",
-		Short: "Delete a node.",
-		Long:  `Delete a node.`,
-		Args:  cobra.MinimumNArgs(1), // at least one node has to be specified
+		Use:               "node (NAME | --all)",
+		Short:             "Delete a node.",
+		Long:              `Delete a node.`,
+		Args:              cobra.MinimumNArgs(1), // at least one node has to be specified
+		ValidArgsFunction: util.ValidArgsAvailableNodes,
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Debugln("delete node called")
 
 			nodes := parseDeleteNodeCmd(cmd, args)
 
@@ -47,13 +48,11 @@ func NewCmdDeleteNode() *cobra.Command {
 				log.Infoln("No nodes found")
 			} else {
 				for _, node := range nodes {
-					if err := cluster.DeleteNode(runtimes.SelectedRuntime, node); err != nil {
+					if err := cluster.DeleteNode(cmd.Context(), runtimes.SelectedRuntime, node); err != nil {
 						log.Fatalln(err)
 					}
 				}
 			}
-
-			log.Debugln("...Finished")
 		},
 	}
 
@@ -75,7 +74,7 @@ func parseDeleteNodeCmd(cmd *cobra.Command, args []string) []*k3d.Node {
 	if all, err := cmd.Flags().GetBool("all"); err != nil {
 		log.Fatalln(err)
 	} else if all {
-		nodes, err = cluster.GetNodes(runtimes.SelectedRuntime)
+		nodes, err = cluster.GetNodes(cmd.Context(), runtimes.SelectedRuntime)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -87,7 +86,7 @@ func parseDeleteNodeCmd(cmd *cobra.Command, args []string) []*k3d.Node {
 	}
 
 	for _, name := range args {
-		node, err := cluster.GetNode(&k3d.Node{Name: name}, runtimes.SelectedRuntime)
+		node, err := cluster.GetNode(cmd.Context(), runtimes.SelectedRuntime, &k3d.Node{Name: name})
 		if err != nil {
 			log.Fatalln(err)
 		}

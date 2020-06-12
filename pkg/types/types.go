@@ -44,6 +44,13 @@ const DefaultLBImage = "docker.io/iwilltry42/k3d-proxy:v0.0.2"
 // DefaultObjectNamePrefix defines the name prefix for every object created by k3d
 const DefaultObjectNamePrefix = "k3d"
 
+// ReadyLogMessageMaster defines the log messages we wait for until a master node is considered ready
+var ReadyLogMessageByRole = map[Role]string{
+	MasterRole:       "Wrote kubeconfig",
+	WorkerRole:       "Successfully registered node",
+	LoadBalancerRole: "start worker processes",
+}
+
 // Role defines a k3d node role
 type Role string
 
@@ -67,6 +74,20 @@ var DefaultObjectLabels = map[string]string{
 	"app": "k3d",
 }
 
+// List of k3d technical label name
+const (
+	LabelToken           string = "k3d.cluster.token"
+	LabelImageVolume     string = "k3d.cluster.imageVolume"
+	LabelNetworkExternal string = "k3d.cluster.network.external"
+	LabelNetwork         string = "k3d.cluster.network"
+)
+
+// DefaultRoleCmds maps the node roles to their respective default commands
+var DefaultRoleCmds = map[Role][]string{
+	MasterRole: {"server"},
+	WorkerRole: {"agent"},
+}
+
 // DefaultTmpfsMounts specifies tmpfs mounts that are required for all k3d nodes
 var DefaultTmpfsMounts = []string{
 	"/run",
@@ -79,7 +100,7 @@ var DefaultNodeEnv = []string{
 }
 
 // DefaultToolsContainerImage defines the default image used for the tools container
-const DefaultToolsContainerImage = "docker.io/iwilltry42/k3d-tools:v0.0.2" // TODO: get version dynamically or at build time
+const DefaultToolsContainerImage = "docker.io/iwilltry42/k3d-tools:v0.0.3" // TODO: get version dynamically or at build time
 
 // DefaultImageVolumeMountPath defines the mount path inside k3d nodes where we will mount the shared image volume by default
 const DefaultImageVolumeMountPath = "/k3d/images"
@@ -96,6 +117,11 @@ const DefaultAPIPort = "6443"
 // DefaultAPIHost defines the default host (IP) for the Kubernetes API
 const DefaultAPIHost = "0.0.0.0"
 
+// DoNotCopyMasterFlags defines a list of commands/args that shouldn't be copied from an existing node when adding a similar node to a cluster
+var DoNotCopyMasterFlags = []string{
+	"--cluster-init",
+}
+
 // CreateClusterOpts describe a set of options one can set when creating a cluster
 type CreateClusterOpts struct {
 	DisableImageVolume  bool
@@ -104,6 +130,29 @@ type CreateClusterOpts struct {
 	DisableLoadBalancer bool
 	K3sServerArgs       []string
 	K3sAgentArgs        []string
+}
+
+// StartClusterOpts describe a set of options one can set when (re-)starting a cluster
+type StartClusterOpts struct {
+	WaitForMaster bool
+	Timeout       time.Duration
+}
+
+// CreateNodeOpts describes a set of options one can set when creating a new node
+type CreateNodeOpts struct {
+	Wait    bool
+	Timeout time.Duration
+}
+
+// StartNodeOpts describes a set of options one can set when (re-)starting a node
+type StartNodeOpts struct {
+	Wait    bool
+	Timeout time.Duration
+}
+
+// LoadImageOpts describes a set of options one can set for loading image(s) into cluster(s)
+type LoadImageOpts struct {
+	KeepTar bool
 }
 
 // ClusterNetwork describes a network which a cluster is running in
@@ -116,7 +165,7 @@ type ClusterNetwork struct {
 type Cluster struct {
 	Name               string             `yaml:"name" json:"name,omitempty"`
 	Network            ClusterNetwork     `yaml:"network" json:"network,omitempty"`
-	Secret             string             `yaml:"cluster_secret" json:"clusterSecret,omitempty"`
+	Token              string             `yaml:"cluster_token" json:"clusterToken,omitempty"`
 	Nodes              []*Node            `yaml:"nodes" json:"nodes,omitempty"`
 	InitNode           *Node              // init master node
 	ExternalDatastore  ExternalDatastore  `yaml:"external_datastore" json:"externalDatastore,omitempty"`
@@ -124,6 +173,28 @@ type Cluster struct {
 	ExposeAPI          ExposeAPI          `yaml:"expose_api" json:"exposeAPI,omitempty"`
 	MasterLoadBalancer *Node              `yaml:"master_loadbalancer" json:"masterLoadBalancer,omitempty"`
 	ImageVolume        string             `yaml:"image_volume" json:"imageVolume,omitempty"`
+}
+
+// MasterCount return number of master node into cluster
+func (c *Cluster) MasterCount() int {
+	masterCount := 0
+	for _, node := range c.Nodes {
+		if node.Role == MasterRole {
+			masterCount++
+		}
+	}
+	return masterCount
+}
+
+// WorkerCount return number of worker node into cluster
+func (c *Cluster) WorkerCount() int {
+	workerCount := 0
+	for _, node := range c.Nodes {
+		if node.Role == WorkerRole {
+			workerCount++
+		}
+	}
+	return workerCount
 }
 
 // Node describes a k3d node
