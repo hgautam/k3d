@@ -30,12 +30,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cliutil "github.com/rancher/k3d/cmd/util"
-	"github.com/rancher/k3d/pkg/cluster"
-	k3dCluster "github.com/rancher/k3d/pkg/cluster"
-	"github.com/rancher/k3d/pkg/runtimes"
-	k3d "github.com/rancher/k3d/pkg/types"
-	"github.com/rancher/k3d/version"
+	cliutil "github.com/rancher/k3d/v3/cmd/util"
+	"github.com/rancher/k3d/v3/pkg/cluster"
+	k3dCluster "github.com/rancher/k3d/v3/pkg/cluster"
+	"github.com/rancher/k3d/v3/pkg/runtimes"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
+	"github.com/rancher/k3d/v3/version"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -110,7 +110,7 @@ func NewCmdCreateCluster() *cobra.Command {
 	/*********
 	 * Flags *
 	 *********/
-	cmd.Flags().StringP("api-port", "a", k3d.DefaultAPIPort, "Specify the Kubernetes API server port exposed on the LoadBalancer (Format: `--api-port [HOST:]HOSTPORT`)\n - Example: `k3d create -m 3 -a 0.0.0.0:6550`")
+	cmd.Flags().StringP("api-port", "a", "random", "Specify the Kubernetes API server port exposed on the LoadBalancer (Format: `--api-port [HOST:]HOSTPORT`)\n - Example: `k3d create -m 3 -a 0.0.0.0:6550`")
 	cmd.Flags().IntP("masters", "m", 1, "Specify how many masters you want to create")
 	cmd.Flags().IntP("workers", "w", 0, "Specify how many workers you want to create")
 	cmd.Flags().StringP("image", "i", fmt.Sprintf("%s:%s", k3d.DefaultK3sImageRepo, version.GetK3sVersion(false)), "Specify k3s image that you want to use for the nodes")
@@ -118,7 +118,7 @@ func NewCmdCreateCluster() *cobra.Command {
 	cmd.Flags().String("token", "", "Specify a cluster token. By default, we generate one.")
 	cmd.Flags().StringArrayP("volume", "v", nil, "Mount volumes into the nodes (Format: `--volume [SOURCE:]DEST[@NODEFILTER[;NODEFILTER...]]`\n - Example: `k3d create -w 2 -v /my/path@worker[0,1] -v /tmp/test:/tmp/other@master[0]`")
 	cmd.Flags().StringArrayP("port", "p", nil, "Map ports from the node containers to the host (Format: `[HOST:][HOSTPORT:]CONTAINERPORT[/PROTOCOL][@NODEFILTER]`)\n - Example: `k3d create -w 2 -p 8080:80@worker[0] -p 8081@worker[1]`")
-	cmd.Flags().BoolVar(&createClusterOpts.WaitForMaster, "wait", false, "Wait for the master(s) to be ready before returning. Use '--timeout DURATION' to not wait forever.")
+	cmd.Flags().BoolVar(&createClusterOpts.WaitForMaster, "wait", true, "Wait for the master(s) to be ready before returning. Use '--timeout DURATION' to not wait forever.")
 	cmd.Flags().DurationVar(&createClusterOpts.Timeout, "timeout", 0*time.Second, "Rollback changes if cluster couldn't be created in specified duration.")
 	cmd.Flags().BoolVar(&updateKubeconfig, "update-kubeconfig", false, "Directly update the default kubeconfig with the new cluster's context")
 	cmd.Flags().BoolVar(&updateCurrentContext, "switch", false, "Directly switch the default kubeconfig's current-context to the new cluster's context (implies --update-kubeconfig)")
@@ -233,6 +233,11 @@ func parseCreateClusterCmd(cmd *cobra.Command, args []string, createClusterOpts 
 	}
 	if exposeAPI.HostIP == "" {
 		exposeAPI.HostIP = k3d.DefaultAPIHost
+	}
+	if networkName == "host" {
+		// in hostNetwork mode, we're not going to map a hostport. Here it should always use 6443.
+		// Note that hostNetwork mode is super inflexible and since we don't change the backend port (on the container), it will only be one hostmode cluster allowed.
+		exposeAPI.Port = k3d.DefaultAPIPort
 	}
 
 	// --volume

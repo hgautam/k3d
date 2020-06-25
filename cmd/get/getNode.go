@@ -28,10 +28,10 @@ import (
 	"strings"
 
 	"github.com/liggitt/tabwriter"
-	"github.com/rancher/k3d/cmd/util"
-	"github.com/rancher/k3d/pkg/cluster"
-	"github.com/rancher/k3d/pkg/runtimes"
-	k3d "github.com/rancher/k3d/pkg/types"
+	"github.com/rancher/k3d/v3/cmd/util"
+	"github.com/rancher/k3d/v3/pkg/cluster"
+	"github.com/rancher/k3d/v3/pkg/runtimes"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
 	"github.com/spf13/cobra"
 
 	log "github.com/sirupsen/logrus"
@@ -118,6 +118,6 @@ func printNodes(nodes []*k3d.Node, headersOff bool) {
 	})
 
 	for _, node := range nodes {
-		fmt.Fprintf(tabwriter, "%s\t%s\t%s\n", strings.TrimPrefix(node.Name, "/"), string(node.Role), node.Labels["k3d.cluster"])
+		fmt.Fprintf(tabwriter, "%s\t%s\t%s\n", strings.TrimPrefix(node.Name, "/"), string(node.Role), node.Labels[k3d.LabelClusterName])
 	}
 }

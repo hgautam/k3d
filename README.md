@@ -1,9 +1,12 @@
 # [![k3d](docs/static/img/k3d_logo_black_blue.svg)](https://k3d.io/)
 
-[![Build Status](https://travis-ci.com/rancher/k3d.svg?branch=master)](https://travis-ci.com/rancher/k3d)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rancher/k3d)](https://goreportcard.com/report/github.com/rancher/k3d)
-[![License](https://img.shields.io/github/license/rancher/k3d)](./LICENSE.md)
-![Downloads](https://img.shields.io/github/downloads/rancher/k3d/total.svg)
+[![Build Status](https://img.shields.io/drone/build/rancher/k3d/master?logo=drone&server=https%3A%2F%2Fdrone-publish.rancher.io&style=flat-square)](https://drone-publish.rancher.io/rancher/k3d)
+[![License](https://img.shields.io/github/license/rancher/k3d?style=flat-square)](./LICENSE.md)
+![Downloads](https://img.shields.io/github/downloads/rancher/k3d/total.svg?style=flat-square)
+
+[![Go Module](https://img.shields.io/badge/Go%20Module-github.com%2Francher%2Fk3d%2Fv3-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/rancher/k3d/v3)
+[![Go version](https://img.shields.io/github/go-mod/go-version/rancher/k3d?logo=go&logoColor=white&style=flat-square)](./go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rancher/k3d?style=flat-square)](https://goreportcard.com/report/github.com/rancher/k3d)
 
 **Please Note:** `master` is now v3.0.0 and the code for v1.x can be found in the `master-v1` branch!
 
@@ -56,7 +59,7 @@ or...
 
 ## Build
 
-1. Clone this repo, e.g. via `go get -u github.com/rancher/k3d`
+1. Clone this repo, e.g. via `git clone git@github.com:rancher/k3d.git` or `go get github.com/rancher/k3d/v3@master`
 2. Inside the repo run
    - 'make install-tools' to make sure required go packages are installed
 3. Inside the repo run one of the following commands

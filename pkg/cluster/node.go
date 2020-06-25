@@ -30,17 +30,18 @@ import (
 	"time"
 
 	"github.com/imdario/mergo"
-	"github.com/rancher/k3d/pkg/runtimes"
-	k3d "github.com/rancher/k3d/pkg/types"
+	"github.com/rancher/k3d/v3/pkg/runtimes"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
 // AddNodeToCluster adds a node to an existing cluster
 func AddNodeToCluster(ctx context.Context, runtime runtimes.Runtime, node *k3d.Node, cluster *k3d.Cluster, createNodeOpts k3d.CreateNodeOpts) error {
+	targetClusterName := cluster.Name
 	cluster, err := GetCluster(ctx, runtime, cluster)
 	if err != nil {
-		log.Errorf("Failed to find specified cluster '%s'", cluster.Name)
+		log.Errorf("Failed to find specified cluster '%s'", targetClusterName)
 		return err
 	}
 
@@ -50,7 +51,7 @@ func AddNodeToCluster(ctx context.Context, runtime runtimes.Runtime, node *k3d.N
 	// skeleton
 	if node.Labels == nil {
 		node.Labels = map[string]string{
-			"k3d.role": string(node.Role),
+			k3d.LabelRole: string(node.Role),
 		}
 	}
 	node.Env = []string{}
@@ -101,7 +102,7 @@ func AddNodeToCluster(ctx context.Context, runtime runtimes.Runtime, node *k3d.N
 		}
 	}
 	if !k3sURLFound {
-		if url, ok := node.Labels["k3d.cluster.url"]; ok {
+		if url, ok := node.Labels[k3d.LabelClusterURL]; ok {
 			node.Env = append(node.Env, fmt.Sprintf("K3S_URL=%s", url))
 		} else {
 			log.Warnln("Failed to find K3S_URL value!")
@@ -224,7 +225,7 @@ func CreateNode(ctx context.Context, runtime runtimes.Runtime, node *k3d.Node, c
 	}
 	node.Labels = labels
 	// second most important: the node role label
-	node.Labels["k3d.role"] = string(node.Role)
+	node.Labels[k3d.LabelRole] = string(node.Role)
 
 	// ### Environment ###
 	node.Env = append(node.Env, k3d.DefaultNodeEnv...) // append default node env vars
@@ -257,7 +258,7 @@ func DeleteNode(ctx context.Context, runtime runtimes.Runtime, node *k3d.Node) e
 		log.Error(err)
 	}
 
-	cluster, err := GetCluster(ctx, runtime, &k3d.Cluster{Name: node.Labels["k3d.cluster"]})
+	cluster, err := GetCluster(ctx, runtime, &k3d.Cluster{Name: node.Labels[k3d.LabelClusterName]})
 	if err != nil {
 		log.Errorf("Failed to update loadbalancer: Failed to find cluster for node '%s'", node.Name)
 		return err
@@ -292,9 +293,9 @@ func patchMasterSpec(node *k3d.Node) error {
 
 	// Add labels and TLS SAN for the exposed API
 	// FIXME: For now, the labels concerning the API on the master nodes are only being used for configuring the kubeconfig
-	node.Labels["k3d.master.api.hostIP"] = node.MasterOpts.ExposeAPI.HostIP // TODO: maybe get docker machine IP here
-	node.Labels["k3d.master.api.host"] = node.MasterOpts.ExposeAPI.Host
-	node.Labels["k3d.master.api.port"] = node.MasterOpts.ExposeAPI.Port
+	node.Labels[k3d.LabelMasterAPIHostIP] = node.MasterOpts.ExposeAPI.HostIP // TODO: maybe get docker machine IP here
+	node.Labels[k3d.LabelMasterAPIHost] = node.MasterOpts.ExposeAPI.Host
+	node.Labels[k3d.LabelMasterAPIPort] = node.MasterOpts.ExposeAPI.Port
 
 	node.Args = append(node.Args, "--tls-san", node.MasterOpts.ExposeAPI.Host) // add TLS SAN for non default host name
 

@@ -27,11 +27,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rancher/k3d/cmd/util"
-	k3dc "github.com/rancher/k3d/pkg/cluster"
-	"github.com/rancher/k3d/pkg/runtimes"
-	k3d "github.com/rancher/k3d/pkg/types"
-	"github.com/rancher/k3d/version"
+	"github.com/rancher/k3d/v3/cmd/util"
+	k3dc "github.com/rancher/k3d/v3/pkg/cluster"
+	"github.com/rancher/k3d/v3/pkg/runtimes"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
+	"github.com/rancher/k3d/v3/version"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,7 +49,7 @@ func NewCmdCreateNode() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			nodes, cluster := parseCreateNodeCmd(cmd, args)
 			if err := k3dc.AddNodesToCluster(cmd.Context(), runtimes.SelectedRuntime, nodes, cluster, createNodeOpts); err != nil {
-				log.Errorf("Failed to add nodes '%+v' to cluster '%s'", nodes, cluster.Name)
+				log.Errorf("Failed to add nodes to cluster '%s'", cluster.Name)
 				log.Errorln(err)
 			}
 		},
@@ -123,7 +123,7 @@ func parseCreateNodeCmd(cmd *cobra.Command, args []string) ([]*k3d.Node, *k3d.Cl
 			Role:  role,
 			Image: image,
 			Labels: map[string]string{
-				"k3d.role": roleStr,
+				k3d.LabelRole: roleStr,
 			},
 		}
 		nodes = append(nodes, node)

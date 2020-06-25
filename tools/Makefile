@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 # get git tag
-GIT_TAG   := $(shell git describe --tags)
+GIT_TAG   ?= $(shell git describe --tags)
 ifeq ($(GIT_TAG),)
 GIT_TAG   := $(shell git describe --always)
 endif
@@ -12,7 +12,7 @@ PKG       := $(shell go mod vendor)
 TAGS      :=
 TESTS     := .
 TESTFLAGS :=
-LDFLAGS   := -w -s -X github.com/iwilltry42/k3d-tools/version.Version=${GIT_TAG}
+LDFLAGS   := -w -s -X github.com/rancher/k3d/tools/version.Version=${GIT_TAG}
 GOFLAGS   :=
 BINDIR    := $(CURDIR)/bin
 BINARIES  := k3d-tools

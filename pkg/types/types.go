@@ -38,13 +38,16 @@ const DefaultClusterNameMaxLength = 32
 // DefaultK3sImageRepo specifies the default image repository for the used k3s image
 const DefaultK3sImageRepo = "docker.io/rancher/k3s"
 
-// DefaultLBImage defines the default cluster load balancer image
-const DefaultLBImage = "docker.io/iwilltry42/k3d-proxy:v0.0.2"
+// DefaultLBImageRepo defines the default cluster load balancer image
+const DefaultLBImageRepo = "docker.io/rancher/k3d-proxy"
+
+// DefaultToolsImageRepo defines the default image used for the tools container
+const DefaultToolsImageRepo = "docker.io/rancher/k3d-tools"
 
 // DefaultObjectNamePrefix defines the name prefix for every object created by k3d
 const DefaultObjectNamePrefix = "k3d"
 
-// ReadyLogMessageMaster defines the log messages we wait for until a master node is considered ready
+// ReadyLogMessageByRole defines the log messages we wait for until a master node is considered ready
 var ReadyLogMessageByRole = map[Role]string{
 	MasterRole:       "Wrote kubeconfig",
 	WorkerRole:       "Successfully registered node",
@@ -76,10 +79,16 @@ var DefaultObjectLabels = map[string]string{
 
 // List of k3d technical label name
 const (
-	LabelToken           string = "k3d.cluster.token"
+	LabelClusterName     string = "k3d.cluster"
+	LabelClusterURL      string = "k3d.cluster.url"
+	LabelClusterToken    string = "k3d.cluster.token"
 	LabelImageVolume     string = "k3d.cluster.imageVolume"
 	LabelNetworkExternal string = "k3d.cluster.network.external"
 	LabelNetwork         string = "k3d.cluster.network"
+	LabelRole            string = "k3d.role"
+	LabelMasterAPIPort   string = "k3d.master.api.port"
+	LabelMasterAPIHost   string = "k3d.master.api.host"
+	LabelMasterAPIHostIP string = "k3d.master.api.hostIP"
 )
 
 // DefaultRoleCmds maps the node roles to their respective default commands
@@ -98,9 +107,6 @@ var DefaultTmpfsMounts = []string{
 var DefaultNodeEnv = []string{
 	"K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml",
 }
-
-// DefaultToolsContainerImage defines the default image used for the tools container
-const DefaultToolsContainerImage = "docker.io/iwilltry42/k3d-tools:v0.0.3" // TODO: get version dynamically or at build time
 
 // DefaultImageVolumeMountPath defines the mount path inside k3d nodes where we will mount the shared image volume by default
 const DefaultImageVolumeMountPath = "/k3d/images"

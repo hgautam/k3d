@@ -29,7 +29,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
-	k3d "github.com/rancher/k3d/pkg/types"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -91,7 +91,7 @@ func (d Containerd) DeleteNode(ctx context.Context, node *k3d.Node) error {
 		return err
 	}
 	if err = container.Delete(ctx, []containerd.DeleteOpts{}...); err != nil {
-		log.Errorln("Failed to delete container", container.ID)
+		log.Errorf("Failed to delete container '%s'", container.ID)
 		return err
 	}
 

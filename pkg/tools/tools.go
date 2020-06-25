@@ -30,9 +30,10 @@ import (
 	"sync"
 	"time"
 
-	k3dc "github.com/rancher/k3d/pkg/cluster"
-	"github.com/rancher/k3d/pkg/runtimes"
-	k3d "github.com/rancher/k3d/pkg/types"
+	k3dc "github.com/rancher/k3d/v3/pkg/cluster"
+	"github.com/rancher/k3d/v3/pkg/runtimes"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
+	"github.com/rancher/k3d/v3/version"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -189,7 +190,7 @@ func LoadImagesIntoCluster(ctx context.Context, runtime runtimes.Runtime, images
 	// delete tools container
 	log.Infoln("Removing k3d-tools node...")
 	if err := runtime.DeleteNode(ctx, toolsNode); err != nil {
-		log.Errorln("Failed to delete tools node '%s': Try to delete it manually", toolsNode.Name)
+		log.Errorf("Failed to delete tools node '%s': Try to delete it manually", toolsNode.Name)
 	}
 
 	log.Infoln("Successfully imported image(s)")
@@ -202,7 +203,7 @@ func LoadImagesIntoCluster(ctx context.Context, runtime runtimes.Runtime, images
 func startToolsNode(ctx context.Context, runtime runtimes.Runtime, cluster *k3d.Cluster, network string, volumes []string) (*k3d.Node, error) {
 	node := &k3d.Node{
 		Name:    fmt.Sprintf("%s-%s-tools", k3d.DefaultObjectNamePrefix, cluster.Name),
-		Image:   k3d.DefaultToolsContainerImage,
+		Image:   fmt.Sprintf("%s:%s", k3d.DefaultToolsImageRepo, version.GetHelperImageVersion()),
 		Role:    k3d.NoRole,
 		Volumes: volumes,
 		Network: network,
@@ -210,7 +211,7 @@ func startToolsNode(ctx context.Context, runtime runtimes.Runtime, cluster *k3d.
 		Args:    []string{"noop"},
 		Labels:  k3d.DefaultObjectLabels,
 	}
-	node.Labels["k3d.cluster"] = cluster.Name
+	node.Labels[k3d.LabelClusterName] = cluster.Name
 	if err := runtime.CreateNode(ctx, node); err != nil {
 		log.Errorf("Failed to create tools container for cluster '%s'", cluster.Name)
 		return node, err

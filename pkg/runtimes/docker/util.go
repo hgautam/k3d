@@ -29,7 +29,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
-	k3d "github.com/rancher/k3d/pkg/types"
+	k3d "github.com/rancher/k3d/v3/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -39,7 +39,7 @@ func GetDefaultObjectLabelsFilter(clusterName string) filters.Args {
 	for key, value := range k3d.DefaultObjectLabels {
 		filters.Add("label", fmt.Sprintf("%s=%s", key, value))
 	}
-	filters.Add("label", fmt.Sprintf("k3d.cluster=%s", clusterName))
+	filters.Add("label", fmt.Sprintf("%s=%s", k3d.LabelClusterName, clusterName))
 	return filters
 }
 
@@ -55,7 +55,7 @@ func (d Docker) CopyToNode(ctx context.Context, src string, dest string, node *k
 
 	container, err := getNodeContainer(ctx, node)
 	if err != nil {
-		log.Errorln("Failed to find container for target node '%s'", node.Name)
+		log.Errorf("Failed to find container for target node '%s'", node.Name)
 		return err
 	}
 
