@@ -47,10 +47,10 @@ const DefaultToolsImageRepo = "docker.io/rancher/k3d-tools"
 // DefaultObjectNamePrefix defines the name prefix for every object created by k3d
 const DefaultObjectNamePrefix = "k3d"
 
-// ReadyLogMessageByRole defines the log messages we wait for until a master node is considered ready
+// ReadyLogMessageByRole defines the log messages we wait for until a server node is considered ready
 var ReadyLogMessageByRole = map[Role]string{
-	MasterRole:       "Wrote kubeconfig",
-	WorkerRole:       "Successfully registered node",
+	ServerRole:       "Wrote kubeconfig",
+	AgentRole:        "Successfully registered node",
 	LoadBalancerRole: "start worker processes",
 }
 
@@ -59,16 +59,16 @@ type Role string
 
 // existing k3d node roles
 const (
-	MasterRole       Role = "master"
-	WorkerRole       Role = "worker"
+	ServerRole       Role = "server"
+	AgentRole        Role = "agent"
 	NoRole           Role = "noRole"
 	LoadBalancerRole Role = "loadbalancer"
 )
 
 // NodeRoles defines the roles available for nodes
 var NodeRoles = map[string]Role{
-	string(MasterRole):       MasterRole,
-	string(WorkerRole):       WorkerRole,
+	string(ServerRole):       ServerRole,
+	string(AgentRole):        AgentRole,
 	string(LoadBalancerRole): LoadBalancerRole,
 }
 
@@ -86,15 +86,15 @@ const (
 	LabelNetworkExternal string = "k3d.cluster.network.external"
 	LabelNetwork         string = "k3d.cluster.network"
 	LabelRole            string = "k3d.role"
-	LabelMasterAPIPort   string = "k3d.master.api.port"
-	LabelMasterAPIHost   string = "k3d.master.api.host"
-	LabelMasterAPIHostIP string = "k3d.master.api.hostIP"
+	LabelServerAPIPort   string = "k3d.server.api.port"
+	LabelServerAPIHost   string = "k3d.server.api.host"
+	LabelServerAPIHostIP string = "k3d.server.api.hostIP"
 )
 
 // DefaultRoleCmds maps the node roles to their respective default commands
 var DefaultRoleCmds = map[Role][]string{
-	MasterRole: {"server"},
-	WorkerRole: {"agent"},
+	ServerRole: {"server"},
+	AgentRole:  {"agent"},
 }
 
 // DefaultTmpfsMounts specifies tmpfs mounts that are required for all k3d nodes
@@ -123,41 +123,41 @@ const DefaultAPIPort = "6443"
 // DefaultAPIHost defines the default host (IP) for the Kubernetes API
 const DefaultAPIHost = "0.0.0.0"
 
-// DoNotCopyMasterFlags defines a list of commands/args that shouldn't be copied from an existing node when adding a similar node to a cluster
-var DoNotCopyMasterFlags = []string{
+// DoNotCopyServerFlags defines a list of commands/args that shouldn't be copied from an existing node when adding a similar node to a cluster
+var DoNotCopyServerFlags = []string{
 	"--cluster-init",
 }
 
-// CreateClusterOpts describe a set of options one can set when creating a cluster
-type CreateClusterOpts struct {
+// ClusterCreateOpts describe a set of options one can set when creating a cluster
+type ClusterCreateOpts struct {
 	DisableImageVolume  bool
-	WaitForMaster       bool
+	WaitForServer       bool
 	Timeout             time.Duration
 	DisableLoadBalancer bool
 	K3sServerArgs       []string
 	K3sAgentArgs        []string
 }
 
-// StartClusterOpts describe a set of options one can set when (re-)starting a cluster
-type StartClusterOpts struct {
-	WaitForMaster bool
+// ClusterStartOpts describe a set of options one can set when (re-)starting a cluster
+type ClusterStartOpts struct {
+	WaitForServer bool
 	Timeout       time.Duration
 }
 
-// CreateNodeOpts describes a set of options one can set when creating a new node
-type CreateNodeOpts struct {
+// NodeCreateOpts describes a set of options one can set when creating a new node
+type NodeCreateOpts struct {
 	Wait    bool
 	Timeout time.Duration
 }
 
-// StartNodeOpts describes a set of options one can set when (re-)starting a node
-type StartNodeOpts struct {
+// NodeStartOpts describes a set of options one can set when (re-)starting a node
+type NodeStartOpts struct {
 	Wait    bool
 	Timeout time.Duration
 }
 
-// LoadImageOpts describes a set of options one can set for loading image(s) into cluster(s)
-type LoadImageOpts struct {
+// ImageImportOpts describes a set of options one can set for loading image(s) into cluster(s)
+type ImageImportOpts struct {
 	KeepTar bool
 }
 
@@ -173,34 +173,52 @@ type Cluster struct {
 	Network            ClusterNetwork     `yaml:"network" json:"network,omitempty"`
 	Token              string             `yaml:"cluster_token" json:"clusterToken,omitempty"`
 	Nodes              []*Node            `yaml:"nodes" json:"nodes,omitempty"`
-	InitNode           *Node              // init master node
+	InitNode           *Node              // init server node
 	ExternalDatastore  ExternalDatastore  `yaml:"external_datastore" json:"externalDatastore,omitempty"`
-	CreateClusterOpts  *CreateClusterOpts `yaml:"options" json:"options,omitempty"`
+	CreateClusterOpts  *ClusterCreateOpts `yaml:"options" json:"options,omitempty"`
 	ExposeAPI          ExposeAPI          `yaml:"expose_api" json:"exposeAPI,omitempty"`
-	MasterLoadBalancer *Node              `yaml:"master_loadbalancer" json:"masterLoadBalancer,omitempty"`
+	ServerLoadBalancer *Node              `yaml:"server_loadbalancer" json:"serverLoadBalancer,omitempty"`
 	ImageVolume        string             `yaml:"image_volume" json:"imageVolume,omitempty"`
 }
 
-// MasterCount return number of master node into cluster
-func (c *Cluster) MasterCount() int {
-	masterCount := 0
+// ServerCountRunning returns the number of server nodes running in the cluster and the total number
+func (c *Cluster) ServerCountRunning() (int, int) {
+	serverCount := 0
+	serversRunning := 0
 	for _, node := range c.Nodes {
-		if node.Role == MasterRole {
-			masterCount++
+		if node.Role == ServerRole {
+			serverCount++
+			if node.State.Running {
+				serversRunning++
+			}
 		}
 	}
-	return masterCount
+	return serverCount, serversRunning
 }
 
-// WorkerCount return number of worker node into cluster
-func (c *Cluster) WorkerCount() int {
-	workerCount := 0
+// AgentCountRunning returns the number of agent nodes running in the cluster and the total number
+func (c *Cluster) AgentCountRunning() (int, int) {
+	agentCount := 0
+	agentsRunning := 0
 	for _, node := range c.Nodes {
-		if node.Role == WorkerRole {
-			workerCount++
+		if node.Role == AgentRole {
+			agentCount++
+			if node.State.Running {
+				agentsRunning++
+			}
 		}
 	}
-	return workerCount
+	return agentCount, agentsRunning
+}
+
+// HasLoadBalancer returns true if cluster has a loadbalancer node
+func (c *Cluster) HasLoadBalancer() bool {
+	for _, node := range c.Nodes {
+		if node.Role == LoadBalancerRole {
+			return true
+		}
+	}
+	return false
 }
 
 // Node describes a k3d node
@@ -216,17 +234,18 @@ type Node struct {
 	Restart    bool              `yaml:"restart" json:"restart,omitempty"`
 	Labels     map[string]string // filled automatically
 	Network    string            // filled automatically
-	MasterOpts MasterOpts        `yaml:"master_opts" json:"masterOpts,omitempty"`
-	WorkerOpts WorkerOpts        `yaml:"worker_opts" json:"workerOpts,omitempty"`
+	ServerOpts ServerOpts        `yaml:"server_opts" json:"serverOpts,omitempty"`
+	AgentOpts  AgentOpts         `yaml:"agent_opts" json:"agentOpts,omitempty"`
+	State      NodeState         // filled automatically
 }
 
-// MasterOpts describes some additional master role specific opts
-type MasterOpts struct {
-	IsInit    bool      `yaml:"is_initializing_master" json:"isInitializingMaster,omitempty"`
+// ServerOpts describes some additional server role specific opts
+type ServerOpts struct {
+	IsInit    bool      `yaml:"is_initializing_server" json:"isInitializingServer,omitempty"`
 	ExposeAPI ExposeAPI // filled automatically
 }
 
-// ExternalDatastore describes an external datastore used for HA/multi-master clusters
+// ExternalDatastore describes an external datastore used for HA/multi-server clusters
 type ExternalDatastore struct {
 	Endpoint string `yaml:"endpoint" json:"endpoint,omitempty"`
 	CAFile   string `yaml:"ca_file" json:"caFile,omitempty"`
@@ -242,10 +261,16 @@ type ExposeAPI struct {
 	Port   string `yaml:"port" json:"port"`
 }
 
-// WorkerOpts describes some additional worker role specific opts
-type WorkerOpts struct{}
+// AgentOpts describes some additional agent role specific opts
+type AgentOpts struct{}
 
 // GetDefaultObjectName prefixes the passed name with the default prefix
 func GetDefaultObjectName(name string) string {
 	return fmt.Sprintf("%s-%s", DefaultObjectNamePrefix, name)
+}
+
+// NodeState describes the current state of a node
+type NodeState struct {
+	Running bool
+	Status  string
 }

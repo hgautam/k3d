@@ -19,7 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-package get
+package node
 
 import (
 	"fmt"
@@ -37,29 +37,29 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// NewCmdGetNode returns a new cobra command
-func NewCmdGetNode() *cobra.Command {
+// NewCmdNodeList returns a new cobra command
+func NewCmdNodeList() *cobra.Command {
 
 	// create new command
 	cmd := &cobra.Command{
-		Use:               "node [NAME [NAME...]]",
-		Aliases:           []string{"nodes"},
-		Short:             "Get node(s)",
-		Long:              `Get node(s).`,
+		Use:               "list [NAME [NAME...]]",
+		Aliases:           []string{"ls", "get"},
+		Short:             "List node(s)",
+		Long:              `List node(s).`,
 		Args:              cobra.MinimumNArgs(0), // 0 or more; 0 = all
 		ValidArgsFunction: util.ValidArgsAvailableNodes,
 		Run: func(cmd *cobra.Command, args []string) {
 			nodes, headersOff := parseGetNodeCmd(cmd, args)
 			var existingNodes []*k3d.Node
 			if len(nodes) == 0 { // Option a)  no name specified -> get all nodes
-				found, err := cluster.GetNodes(cmd.Context(), runtimes.SelectedRuntime)
+				found, err := cluster.NodeList(cmd.Context(), runtimes.SelectedRuntime)
 				if err != nil {
 					log.Fatalln(err)
 				}
 				existingNodes = append(existingNodes, found...)
 			} else { // Option b) cluster name specified -> get specific cluster
 				for _, node := range nodes {
-					found, err := cluster.GetNode(cmd.Context(), runtimes.SelectedRuntime, node)
+					found, err := cluster.NodeGet(cmd.Context(), runtimes.SelectedRuntime, node)
 					if err != nil {
 						log.Fatalln(err)
 					}
@@ -106,7 +106,7 @@ func printNodes(nodes []*k3d.Node, headersOff bool) {
 	defer tabwriter.Flush()
 
 	if !headersOff {
-		headers := []string{"NAME", "ROLE", "CLUSTER"} // TODO: add status
+		headers := []string{"NAME", "ROLE", "CLUSTER", "STATUS"}
 		_, err := fmt.Fprintf(tabwriter, "%s\n", strings.Join(headers, "\t"))
 		if err != nil {
 			log.Fatalln("Failed to print headers")
@@ -118,6 +118,6 @@ func printNodes(nodes []*k3d.Node, headersOff bool) {
 	})
 
 	for _, node := range nodes {
-		fmt.Fprintf(tabwriter, "%s\t%s\t%s\n", strings.TrimPrefix(node.Name, "/"), string(node.Role), node.Labels[k3d.LabelClusterName])
+		fmt.Fprintf(tabwriter, "%s\t%s\t%s\t%s\n", strings.TrimPrefix(node.Name, "/"), string(node.Role), node.Labels[k3d.LabelClusterName], node.State.Status)
 	}
 }

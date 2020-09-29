@@ -19,7 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-package start
+package cluster
 
 import (
 	"time"
@@ -35,14 +35,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// NewCmdStartCluster returns a new cobra command
-func NewCmdStartCluster() *cobra.Command {
+// NewCmdClusterStart returns a new cobra command
+func NewCmdClusterStart() *cobra.Command {
 
-	startClusterOpts := types.StartClusterOpts{}
+	startClusterOpts := types.ClusterStartOpts{}
 
 	// create new command
 	cmd := &cobra.Command{
-		Use:               "cluster [NAME [NAME...] | --all]",
+		Use:               "start [NAME [NAME...] | --all]",
 		Long:              `Start existing k3d cluster(s)`,
 		Short:             "Start existing k3d cluster(s)",
 		ValidArgsFunction: util.ValidArgsAvailableClusters,
@@ -52,7 +52,7 @@ func NewCmdStartCluster() *cobra.Command {
 				log.Infoln("No clusters found")
 			} else {
 				for _, c := range clusters {
-					if err := cluster.StartCluster(cmd.Context(), runtimes.SelectedRuntime, c, startClusterOpts); err != nil {
+					if err := cluster.ClusterStart(cmd.Context(), runtimes.SelectedRuntime, c, startClusterOpts); err != nil {
 						log.Fatalln(err)
 					}
 				}
@@ -62,7 +62,7 @@ func NewCmdStartCluster() *cobra.Command {
 
 	// add flags
 	cmd.Flags().BoolP("all", "a", false, "Start all existing clusters")
-	cmd.Flags().BoolVar(&startClusterOpts.WaitForMaster, "wait", false, "Wait for the master(s) (and loadbalancer) to be ready before returning.")
+	cmd.Flags().BoolVar(&startClusterOpts.WaitForServer, "wait", false, "Wait for the server(s) (and loadbalancer) to be ready before returning.")
 	cmd.Flags().DurationVar(&startClusterOpts.Timeout, "timeout", 0*time.Second, "Maximum waiting time for '--wait' before canceling/returning.")
 
 	// add subcommands
@@ -79,7 +79,7 @@ func parseStartClusterCmd(cmd *cobra.Command, args []string) []*k3d.Cluster {
 	if all, err := cmd.Flags().GetBool("all"); err != nil {
 		log.Fatalln(err)
 	} else if all {
-		clusters, err = cluster.GetClusters(cmd.Context(), runtimes.SelectedRuntime)
+		clusters, err = cluster.ClusterList(cmd.Context(), runtimes.SelectedRuntime)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -92,7 +92,7 @@ func parseStartClusterCmd(cmd *cobra.Command, args []string) []*k3d.Cluster {
 	}
 
 	for _, name := range clusternames {
-		cluster, err := cluster.GetCluster(cmd.Context(), runtimes.SelectedRuntime, &k3d.Cluster{Name: name})
+		cluster, err := cluster.ClusterGet(cmd.Context(), runtimes.SelectedRuntime, &k3d.Cluster{Name: name})
 		if err != nil {
 			log.Fatalln(err)
 		}

@@ -19,22 +19,21 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-package stop
+package node
 
 import (
 	log "github.com/sirupsen/logrus"
-
 	"github.com/spf13/cobra"
 )
 
-// NewCmdStop returns a new cobra command
-func NewCmdStop() *cobra.Command {
+// NewCmdNode returns a new cobra command
+func NewCmdNode() *cobra.Command {
 
 	// create new cobra command
 	cmd := &cobra.Command{
-		Use:   "stop",
-		Short: "Stop a resource [cluster, node].",
-		Long:  `Stop a resource [cluster, node].`,
+		Use:   "node",
+		Short: "Manage node(s)",
+		Long:  `Manage node(s)`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := cmd.Help(); err != nil {
 				log.Errorln("Couldn't get help text")
@@ -44,8 +43,13 @@ func NewCmdStop() *cobra.Command {
 	}
 
 	// add subcommands
-	cmd.AddCommand(NewCmdStopCluster())
-	cmd.AddCommand(NewCmdStopNode())
+	cmd.AddCommand(NewCmdNodeCreate())
+	cmd.AddCommand(NewCmdNodeStart())
+	cmd.AddCommand(NewCmdNodeStop())
+	cmd.AddCommand(NewCmdNodeDelete())
+	cmd.AddCommand(NewCmdNodeList())
+
+	// add flags
 
 	// done
 	return cmd

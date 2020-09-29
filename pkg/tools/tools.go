@@ -37,9 +37,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// LoadImagesIntoCluster starts up a k3d tools container for the selected cluster and uses it to export
+// ImageImportIntoClusterMulti starts up a k3d tools container for the selected cluster and uses it to export
 // images from the runtime to import them into the nodes of the selected cluster
-func LoadImagesIntoCluster(ctx context.Context, runtime runtimes.Runtime, images []string, cluster *k3d.Cluster, loadImageOpts k3d.LoadImageOpts) error {
+func ImageImportIntoClusterMulti(ctx context.Context, runtime runtimes.Runtime, images []string, cluster *k3d.Cluster, loadImageOpts k3d.ImageImportOpts) error {
 
 	var imagesFromRuntime []string
 	var imagesFromTar []string
@@ -79,7 +79,7 @@ func LoadImagesIntoCluster(ctx context.Context, runtime runtimes.Runtime, images
 		return fmt.Errorf("No valid images specified")
 	}
 
-	cluster, err = k3dc.GetCluster(ctx, runtime, cluster)
+	cluster, err = k3dc.ClusterGet(ctx, runtime, cluster)
 	if err != nil {
 		log.Errorf("Failed to find the specified cluster")
 		return err
@@ -92,7 +92,7 @@ func LoadImagesIntoCluster(ctx context.Context, runtime runtimes.Runtime, images
 	var imageVolume string
 	var ok bool
 	for _, node := range cluster.Nodes {
-		if node.Role == k3d.MasterRole || node.Role == k3d.WorkerRole {
+		if node.Role == k3d.ServerRole || node.Role == k3d.AgentRole {
 			if imageVolume, ok = node.Labels[k3d.LabelImageVolume]; ok {
 				break
 			}
@@ -162,8 +162,8 @@ func LoadImagesIntoCluster(ctx context.Context, runtime runtimes.Runtime, images
 	var importWaitgroup sync.WaitGroup
 	for _, tarName := range importTarNames {
 		for _, node := range cluster.Nodes {
-			// only import image in master and worker nodes (i.e. ignoring auxiliary nodes like the master loadbalancer)
-			if node.Role == k3d.MasterRole || node.Role == k3d.WorkerRole {
+			// only import image in server and agent nodes (i.e. ignoring auxiliary nodes like the server loadbalancer)
+			if node.Role == k3d.ServerRole || node.Role == k3d.AgentRole {
 				importWaitgroup.Add(1)
 				go func(node *k3d.Node, wg *sync.WaitGroup, tarPath string) {
 					log.Infof("Importing images from tarball '%s' into node '%s'...", tarPath, node.Name)
