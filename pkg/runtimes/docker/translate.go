@@ -33,6 +33,8 @@ import (
 	"github.com/docker/go-connections/nat"
 	k3d "github.com/rancher/k3d/v3/pkg/types"
 	log "github.com/sirupsen/logrus"
+
+	dockercliopts "github.com/docker/cli/opts"
 )
 
 // TranslateNodeToContainer translates a k3d node specification to a docker container representation
@@ -41,7 +43,8 @@ func TranslateNodeToContainer(node *k3d.Node) (*NodeInDocker, error) {
 	/* initialize everything that we need */
 	containerConfig := docker.Config{}
 	hostConfig := docker.HostConfig{
-		Init: &[]bool{true}[0],
+		Init:       &[]bool{true}[0],
+		ExtraHosts: node.ExtraHosts,
 	}
 	networkingConfig := network.NetworkingConfig{}
 
@@ -74,12 +77,19 @@ func TranslateNodeToContainer(node *k3d.Node) (*NodeInDocker, error) {
 		hostConfig.Tmpfs[mnt] = ""
 	}
 
+	if node.GPURequest != "" {
+		gpuopts := dockercliopts.GpuOpts{}
+		if err := gpuopts.Set(node.GPURequest); err != nil {
+			return nil, fmt.Errorf("Failed to set GPU Request: %+v", err)
+		}
+		hostConfig.DeviceRequests = gpuopts.Value()
+	}
+
 	/* They have to run in privileged mode */
 	// TODO: can we replace this by a reduced set of capabilities?
 	hostConfig.Privileged = true
 
 	/* Volumes */
-	log.Debugf("Volumes: %+v", node.Volumes)
 	hostConfig.Binds = node.Volumes
 	// containerConfig.Volumes = map[string]struct{}{} // TODO: do we need this? We only used binds before
 
