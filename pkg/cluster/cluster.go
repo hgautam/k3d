@@ -31,8 +31,11 @@ import (
 	"strings"
 	"time"
 
+	gort "runtime"
+
 	"github.com/imdario/mergo"
 	k3drt "github.com/rancher/k3d/v3/pkg/runtimes"
+	"github.com/rancher/k3d/v3/pkg/runtimes/docker"
 	"github.com/rancher/k3d/v3/pkg/types"
 	k3d "github.com/rancher/k3d/v3/pkg/types"
 	"github.com/rancher/k3d/v3/pkg/util"
@@ -59,6 +62,23 @@ func ClusterCreate(ctx context.Context, runtime k3drt.Runtime, cluster *k3d.Clus
 	/*
 	 * Network
 	 */
+
+	if cluster.ExposeAPI.Host == k3d.DefaultAPIHost && runtime == k3drt.Docker {
+		if gort.GOOS == "windows" || gort.GOOS == "darwin" {
+			log.Tracef("Running on %s: checking if it's using docker-machine", gort.GOOS)
+			machineIP, err := runtime.(docker.Docker).GetDockerMachineIP()
+			if err != nil {
+				log.Warnf("Using docker-machine, but failed to get it's IP: %+v", err)
+			} else if machineIP != "" {
+				log.Infof("Using the docker-machine IP %s to connect to the Kubernetes API", machineIP)
+				cluster.ExposeAPI.Host = machineIP
+				cluster.ExposeAPI.HostIP = machineIP
+			} else {
+				log.Traceln("Not using docker-machine")
+			}
+		}
+
+	}
 
 	// error out if external cluster network should be used but no name was set
 	if cluster.Network.Name == "" && cluster.Network.External {
