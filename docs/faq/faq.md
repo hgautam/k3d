@@ -7,7 +7,7 @@
 
 ## Issues with ZFS
 
-- k3s currently has [no support for ZFS](ttps://github.com/rancher/k3s/issues/66) and thus, creating multi-server setups (e.g. `k3d cluster create multiserver --servers 3`) fails, because the initializing server node (server flag `--cluster-init`) errors out with the following log:
+- k3s currently has [no support for ZFS](https://github.com/rancher/k3s/issues/66) and thus, creating multi-server setups (e.g. `k3d cluster create multiserver --servers 3`) fails, because the initializing server node (server flag `--cluster-init`) errors out with the following log:
 
   ```bash
   starting kubernetes: preparing server: start cluster and https: raft_init(): io: create I/O capabilities probe file: posix_allocate: operation not supported on socket
@@ -49,3 +49,23 @@
 ## How to access services (like a database) running on my Docker Host Machine
 
 - As of version v3.1.0, we're injecting the `host.k3d.internal` entry into the k3d containers (k3s nodes) and into the CoreDNS ConfigMap, enabling you to access your host system by referring to it as `host.k3d.internal`
+
+## Running behind a corporate proxy
+
+Running k3d behind a corporate proxy can lead to some issues with k3d that have already been reported in more than one issue.
+Some can be fixed by passing the `HTTP_PROXY` environment variables to k3d, some have to be fixed in docker's `daemon.json` file and some are as easy as adding a volume mount.
+
+### Pods fail to start: `x509: certificate signed by unknown authority`
+
+- Example Error Message: `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to get sandbox image "docker.io/rancher/pause:3.1": failed to pull image "docker.io/rancher/pause:3.1": failed to pull and unpack image "docker.io/rancher/pause:3.1": failed to resolve reference "docker.io/rancher/pause:3.1": failed to do request: Head https://registry-1.docker.io/v2/rancher/pause/manifests/3.1: x509: certificate signed by unknown authority`
+- Problem: inside the container, the certificate of the corporate proxy cannot be validated
+- Possible Solution: Mounting the CA Certificate from your host into the node containers at start time via `k3d cluster create --volume /path/to/your/certs.crt:/etc/ssl/certs/yourcert.crt`
+- Issue: [rancher/k3d#535](https://github.com/rancher/k3d/discussions/535#discussioncomment-474982)
+
+### Spurious PID entries in `/proc` after deleting `k3d` cluster with shared mounts
+
+- When you perform cluster create and deletion operations multiple times with **same cluster name** and **shared volume mounts**, it was observed that `grep k3d /proc/*/mountinfo` shows many spurious entries
+- Problem: Due to above, at times you'll see `no space left on device: unknown` when a pod is scheduled to the nodes
+- If you observe anything of above sort you can check for inaccessible file systems and unmount them by using below command (note: please remove `xargs umount -l` and check for the diff o/p first)
+- `diff <(df -ha | grep pods | awk '{print $NF}') <(df -h | grep pods | awk '{print $NF}') | awk '{print $2}' | xargs umount -l`
+- As per the conversation on [rancher/k3d#594](https://github.com/rancher/k3d/issues/594#issuecomment-837900646) above issue wasn't reported/known earlier and so there are high chances that it's not universal.
